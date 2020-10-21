@@ -1,0 +1,39 @@
+%*******************************************************
+% Acronyms
+%*******************************************************
+\automark[section]{chapter}
+\renewcommand{\chaptermark}[1]{\markboth{\spacedlowsmallcaps{#1}}{\spacedlowsmallcaps{#1}}}
+\renewcommand{\sectionmark}[1]{\markright{\thesection\enspace\spacedlowsmallcaps{#1}}}
+\refstepcounter{dummy}
+\pdfbookmark[1]{Abk\"{u}rzungsverzeichnis}{abk\"{u}rzungsverzeichnis}
+\markboth{\spacedlowsmallcaps{Abk\"{u}rzungsverzeichnis}}{\spacedlowsmallcaps{Abk\"{u}rzungsverzeichnis}}
+\chapter*{Abk\"{u}rzungsverzeichnis}
+
+% Insert your acronyms here
+\begin{acronym}[BMOG\quad]\itemsep0pt
+  \acro{ANN}{Artificial Neural Network}
+  \acro{BGS}{Background Subtractor}
+  \acro{BMOG}{Boosted MOG}
+  \acro{CDW}{Change Detection Workshop (2014)}
+  \acro{CNN}{Convolutional Neural Network}
+  \acro{FC}{Fully Connected}
+  \acro{FN}{False Negative}
+  \acro{FP}{False Positve}
+  \acro{FPR}{False Positive Rate}
+  \acro{GMM}{Gaussian Mixture Model}
+  \acro{IoU}{Intersection over Union}
+  \acroplural{IoU}[IoUs]{Intersections over Unions}
+  \acro{mAP}{Mean Average Precision}
+  \acro{MLP}{Multilayer Perzeptron}
+  \acro{MOG}{Mixture of Gaussian}
+  \acro{RGB}{Rot, Grün, Blau}
+  \acro{ROI}{Region of Interest}
+  \acroplural{ROI}[ROIs]{Regions of Interest}
+  \acro{TN}{True Negative}
+  \acro{TNR}{True Negative Rate}
+  \acro{TP}{True Positve}
+  \acro{TPR}{True Positive Rate}
+  \acro{WEA}{Windenergieanlage}
+\end{acronym}
+
+\cleardoublepage

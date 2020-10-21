@@ -1,0 +1,101 @@
+\chapter{Schlusswort} \label{ch:final}
+In diesem Kapitel werden die wichtigsten Aspekte kurz zusammengefasst und ein Ausblick für weitere Aufgaben gegeben.
+
+\section{Zusammenfassung und Fazit}
+In dieser Arbeit wurde eine Vorgehensweise zum Erkennen von Traktoren in der Freiflächenüberwachung vorgestellt.
+Das Konzept beruht dabei auf dem \ac{BGS} \ac{BMOG}, mit dem die Bewegungen in den Bildern gefunden werden.
+Das \ac{CNN}, eine Variante des EfficientNets, klassifiziert die Bewegungen anschließend.
+
+Zur Evaluation wurde ein Prototyp im Maßstab $1:100$ erstellt und die Wetter\-einwirkungen Regen und Nebel auf den Aufnahmen simuliert.
+In der Evaluierung hat sich gezeigt, dass das Finden der Bewegungen mit \ac{BMOG} nach einer Parameteroptimierung deutlich verbessert werden konnte.
+Mit der Kombination beider Komponenten konnten $94.9$ Prozent aller Traktoren gefunden werden, wobei $93.7$ Prozent aller Traktor-Vorhersagen richtig waren.
+Die Erkennung zeigte sich robust gegen die Wettereinwirkungen Regen und Nebel.
+Auch bei Nacht wurden die Traktoren anhand ihrer Scheinwerfer erkannt.
+
+Die Traktoren werden dabei bis zu einer Mindestgröße von \mbox{$30 \times 30$} Pixeln erkannt.
+Viele gängige Objekt Detektoren haben bei dieser Größe Schwierigkeiten (vgl. \cite{wu_recent_2019}, S. 32 - $AP_S$).
+Dieser Vergleich ist jedoch nicht fair, da für diese der Durchschnitt der Average Precision für eine \ac{IoU} von $0.5$ bis $0.95$ gebildet wird.
+Der vorgestellte Ansatz wurde für deutlich kleinere \acp{IoU} evaluiert.
+Diese optimistische Evaluation ist darauf zurückzuführen, dass Traktoren zwar gefunden wurden, sich die Bounding Boxen jedoch teilweise stark unterscheiden.
+Beispielhaft ist dies in den Abbildungen von \autoref{apx:bgs_iou} zu sehen, in welchen der Lichtwurf / die Scheinwerfer und nicht die Traktoren selbst erkannt werden.
+Nichtsdestotrotz verspricht das Konzept eine gute Lösung des Problems, da eine genaue Lokalisation des Traktors nicht notwendig ist.
+
+Die Bearbeitungszeit eines Bildes ($1632 \times 1224$ Pixel und $50$ gefundene \acp{ROI}) beträgt auf getesteter Hardware \SI{137}{ms}.
+Das EfficientDet-D6, das Gegenüber des EfficientNets für die Objekt Detektion, benötigt auf einer \SC{NVidia Titan V} \SI{190}{ms} für ein vergleichbar großes Eingangsbild \cite{tan_efficientdet_2019}.
+Ein konsequent hochskaliertes EfficientDet-D7 würde dabei schon nicht mehr genutzt werden können, da es über den Arbeitsspeicher der \SC{Titan V} von \SI{12}{GB} hinausragt.
+Die \SC{NVidia Titan V} ist zwar mit der verwendeten \SC{RTX 2080 Ti} vergleichbar, jedoch nicht mit den Kapazitäten derzeitiger Edge-Nodes \cite{lambda_labs_inc_gpu_nodate,nvidia_nvidia_nodate}.
+Das vorgestellte \SC{EFN-N15} hat im Vergleich zum EfficientDet-D6 statt $50.6$ Mio. nur $126$T Parameter und sollte somit problemlos eingesetzt werden können.
+
+Ein weiterer Vorteil des hier vorgestellten Konzepts ist das schnellere Training.
+Zum einem ist die Komplexität des \ac{CNN}s um ein Vielfaches geringer und zum anderm ist das Erstellen von Trainingsdaten einfacher.
+Die Bilder müssen nicht alle händisch annotiert werden, sondern nur die extrahierten \acp{ROI} ihrer Klasse zugeordnet werden.
+Bei neuen Daten kann das Zuordnen ein bereits trainiertes \ac{CNN} übernehmen und es ist lediglich eine Qualitätskontrolle notwendig.
+
+
+\section{Ausblick}
+Im Folgenden sind Vorschläge für spätere Arbeiten gegeben.
+Dabei handelt es sich sowohl um technische als auch konzeptionelle Sachverhalte.
+
+\bigskip
+Technisch:
+\begin{itemize}
+    \item
+    Aus den Zeitmessungen geht hervor, dass laufzeitbedingt \ac{BMOG} den Bottleneck der Anwendung darstellt.
+    Durchschnittlich wurden pro Bild $4.26$ \acp{ROI} gefunden.
+    Es ist anzunehmen, dass die Anzahl an \acp{ROI} in den tatsächlichen Aufnahmen steigt (beispielhaft durch Wind, der die Bäume zum Wehen bringt oder Wolken, die Schatten werfen).
+    Geht man also von $50$ \acp{ROI} aus, ergibt sich eine Laufzeit von \SI{137}{ms}.
+    Dabei nimmt \ac{BMOG} mit \SI{97}{ms} rund $71$\% der Zeit ein.
+
+    Zurzeit läuft \ac{BMOG} nur auf einem Kernel der CPU.
+    Die Performanz könnte also durch eine softwareseitge Multithreading-Architektur gesteigert werden.
+    Theoretisch sollte diese Anpassung relativ trivial sein, da für jedes Pixel ein eigenes Mixture Modell erstellt wird und der Algorithmus sich daher für eine Parallelisierung eignet.
+    Dieser Schritt wurde bereits für das \ac{GMM} von \citeauthor{mabrouk_performance_2019} mit Erfolg durchgeführt \cite{mabrouk_performance_2019}.
+    Ebenfalls könnte der \ac{BGS} mittels \mbox{\SC{CUDA}} auf der Grafikkarte laufen \cite{pham_gpu_2010}.
+
+    \item
+    Um die Laufzeit weiter zu verbessern, kann das \SC{EFN} weiter herunterskaliert werden.
+
+    \item
+    Bei der Parametrisierung für die \ac{ROI}-Suche wurde für die Dilatationiterationen die gleiche Anzahl wie für die Mindestgröße bei der Blobanalyse verwendet.
+    Durch die Dilatationen erreichen alle Bereiche die Mindestgröße.
+    Dieser Sachverhalt sollte weiter untersucht werden.
+
+    \item
+    Die unmittelbar nächsten Schritte umfassen ein Deployment auf einem Edge-Node und das Testen der vorgestellten Alarmlogiken.
+\end{itemize}
+
+\bigskip
+Konzeptionell: 
+\begin{itemize}
+    \item 
+    Tote Blickwinkel (\autoref{ch4:fig:dead}) können in einem Windpark gegebenenfalls durch andere \IT{Windräder} abgedeckt werden. 
+
+    \item
+    Bei der Klassifizierung der \acp{ROI} kann ebenfalls zwischen mehreren Traktortypen unterschieden werden.
+    Demnach kann bei Bedarf nur bei bestimmten Typen (z.B. Mähdrescher) ein Alarm gesendet werden.
+
+    \item
+    Wenn die Kameras an den Windrädern aufgehangen werden, ist davon auszugehen, dass die Rotorblätter die Sicht versperren können.
+    Der Bildauslöser sollte also mit diesen synchronisiert werden.
+    Andernfalls können betroffene Aufnahmen durch die Blobanalyse (Maximalgröße) herausgefiltert werden.
+
+    \item
+    Erweist sich die Alarmlogik als zuverlässig, kann diese, anstatt eine E-Mail abzusetzen, die Windräder eigenständig steuern.
+
+    \item
+    Um den Energiebedarf weiter zu reduzieren, kann eine niedrige Bildfrequenz eingesetzt werden, die sich erhöht sobald eine Traktor gefunden wurde.
+    
+    \item
+    Wenn nachts das Erkennen von Scheinwerfern nicht ausreichend ist, sollte eine Nachtsichtkamera eingesetzt werden.
+\end{itemize}
+
+\bigskip
+Der Prototyp hat gezeigt, dass das Konzept eine gute Lösung darstellt.
+Nun gilt es, diesen auch in der Wirklichkeit umzusetzen.
+Dazu müssen in Ansprache mit den Windparkbetreibern Bildsequenzen aufgenommen werden, auf denen das \ac{CNN} trainiert werden kann.
+Anfangs können Datensätze wie die \SC{VEDAI} Sammlung eingesetzt werden, um das \ac{CNN} vorzutrainieren \cite{razakarivony_vehicle_2016}.
+Diese enthält mehrere kleine Fahrzeuge, die aus der Luft aufgenommen wurden.
+Die Aufnahmen liegen außerdem in mehreren Lichtspektren vor.
+
+\bigskip
+Ist das System im Einsatz, muss geprüft werden, ob durch das Ausschalten der \acp{WEA} bei Mahdaktivitäten die Todesrate unter die Signifikanzschwelle gesenkt und der Rotmilan gerettet wird.

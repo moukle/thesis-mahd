@@ -1,0 +1,49 @@
+%*******************************************************
+% Abstract
+%*******************************************************
+%\renewcommand{\abstractname}{Abstract}
+\vspace*{\fill}
+\pdfbookmark[1]{Abstract}{Abstract}
+\begingroup
+\let\clearpage\relax
+\let\cleardoublepage\relax
+\let\cleardoublepage\relax
+
+\begin{otherlanguage}{american}
+	\chapter*{\makebox[\linewidth]{Abstract}}
+	Common object detectors need high computing performance.
+	They generate lots of \IT{Region Porposals} to identify all objects in a single frame.
+
+	Thus we created a concept only identifying moving objects.
+	A simple framework consisting of a background subtractor and Convolutional Neural Network (CNN) is composed.
+	First the background subtractor is applied, searching moving objects.
+	The interesting regions are then classified by the CNN.
+
+	For evaluation purpose a prototype in scale of 1:100 was built.
+	The combination of both components scores a F1 value of $90.2$.
+	The average amount of found regions per frame has been reduced to $4.6$, suggesting lower computing requirements.
+\end{otherlanguage}
+
+% \newpage
+% \cleardoublepage
+
+\vspace{2cm}
+\begin{otherlanguage}{ngerman}
+	\pdfbookmark[1]{Zusammenfassung}{Zusammenfassung}
+	\chapter*{\makebox[\linewidth]{Zusammenfassung}}
+	Typische Objekt Detektoren sind rechenintensiv.
+	Es werden sehr viele \IT{Region Porposals} generiert, um alle Objekte in starren Bildern zu finden.
+
+	Deshalb wird in dieser Arbeit ein Konzept entwickelt, mit dem nur sich bewegende Objekte erkannt werden.
+	Dazu wird ein Background Subtractor mit einem Convolutional Neural Network (CNN) kombiniert.
+	Der Background Subtractor sucht zuerst in jedem Bild der Videoaufnahme nach Bewegungen.
+	Die gefundenen Regionen werden anschließend vom CNN klassifiziert.
+
+	Zur Evaluation wird ein Prototyp im Maßstab 1:100 nachgebaut.
+	Die Kombinationen beider Komponenten ergibt nach Optimierung einen F1 Wert von $90.2$.
+	Durch dieses Konzept konnten die durchschnittlich zu klassifizierenden Bereiche auf $4.6$ pro Bild reduziert und der Rechenaufwand dementsprechend gesenkt werden.
+\end{otherlanguage}
+
+\endgroup
+
+\vspace*{\fill}

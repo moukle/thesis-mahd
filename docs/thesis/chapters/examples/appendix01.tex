@@ -1,0 +1,397 @@
+%************************************************
+\chapter{Anhang: Code}\label{ch:anhang}
+\begin{flushright}{\slshape
+    Talk is cheap. Show me the code.} \\ \medskip
+    --- Torvalds, Linus
+\end{flushright}
+
+\bigskip
+
+% \begingroup
+% \let\clearpage\relax
+% \let\cleardoublepage\relax
+% \let\cleardoublepage\relax
+%************************************************
+
+Die folgenden Abschnitte enthalten Codeteile von \autoref{ch:concept}.
+
+\section{Docker} \label{ap:dockerfile}
+\autoref{ch4:tech}
+
+\begin{code}
+\caption{Dockerfile}
+\label{code:dockerfile}
+\begin{minted}[linenos,frame=lines,framesep=2mm,breaklines,tabsize=4]{bash}
+# Use tensorflow:nightly as base image - commit #4be8a8bf5e24
+FROM tensorflow/tensorflow:nightly-gpu-py3
+
+# Install python dependencies via pip
+RUN pip install --user numpy scipy matplotlib ipython jupyter pandas  scikit-learn pillow \
+	&& pip install git+https://www.github.com/keras-team/keras-contrib.git \
+	&& pip install git+https://github.com/qubvel/efficientnet
+
+# Linux dependencies
+ENV DEBIAN_FRONTEND=noninteractive
+RUN add-apt-repository "deb http://security.ubuntu.com/ubuntu xenial-security main" \
+    && apt-get update -y \
+    # Install basic programs
+    && apt-get install -y \
+        build-essential cmake wget unzip vim pkg-config \
+    # Install opencv(-contrib) dependencies
+    && apt-get install -y \
+        libswscale-dev libtbb2 libtbb-dev libjpeg-dev libpng-dev libtiff-dev libjasper-dev libavformat-dev libhdf5-dev libpq-dev libharfbuzz-dev vtk7  libvtk7-dev libblas-dev liblapack-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev libxvidcore-dev libx264-dev libgtk-3-dev libatlas-base-dev gfortran libglu1-mesa-dev freeglut3-dev mesa-common-dev libeigen3-dev libprotobuf-dev
+
+
+# Install OpenCV from source - inspired by hubimage jjanzic/docker-python3-opencv
+WORKDIR /
+ENV OPENCV_VERSION="3.4.8"
+RUN wget https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.zip -O opencv.zip \
+	&& wget https://github.com/opencv/opencv_contrib/archive/${OPENCV_VERSION}.zip -O opencv_contrib.zip \
+	&& unzip opencv.zip \
+	&& unzip opencv_contrib.zip \
+	&& mkdir /opencv-${OPENCV_VERSION}/cmake_binary \
+	&& cd /opencv-${OPENCV_VERSION}/cmake_binary \
+	&& cmake \
+		-DBUILD_TIFF=ON \
+		-DBUILD_opencv_java=OFF \
+		-DWITH_CUDA=OFF \
+		-DENABLE_AVX=ON \
+		-DWITH_OPENGL=ON \
+		-DWITH_OPENCL=ON \
+		-DWITH_IPP=ON \
+		-DWITH_TBB=ON \
+		-DWITH_EIGEN=ON \
+		-DWITH_V4L=ON \
+		-DBUILD_TESTS=OFF \
+		-DBUILD_PERF_TESTS=OFF \
+		-DCMAKE_BUILD_TYPE=RELEASE \
+		-DOPENCV_GENERATE_PKGCONFIG=ON \
+		-DCMAKE_INSTALL_PREFIX=/usr/local \
+		-DCMAKE_INSTALL_PREFIX=$(python3 -c "import sys; print(sys.prefix)") \
+		-DPYTHON_EXECUTABLE=$(which python3) \
+		-DPYTHON_INCLUDE_DIR=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
+		-DPYTHON_PACKAGES_PATH=$(python3 -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())") \
+		-DOPENCV_EXTRA_MODULES_PATH=../../opencv_contrib-${OPENCV_VERSION}/modules \
+		-DCMAKE_DISABLE_FIND_PACKAGE_TBB=ON \
+		.. \
+	&& make -j8 \ # compile using 8 cores
+	&& make install \
+	&& rm /opencv.zip \ # clean up
+	&& rm /opencv_contrib.zip \
+	&& rm -r /opencv-${OPENCV_VERSION} \
+	&& rm -r /opencv_contrib-${OPENCV_VERSION}
+\end{minted}
+\end{code}
+
+
+\section{BMOG in Python einbinden} \label{ap:bmog}
+\autoref{ch4:rois}
+
+\begin{code}
+\caption{Erweitern der \TT{bmog.hpp} um externe Aufrufe \IT{(C++)}}
+\begin{minted}[linenos,frame=lines,framesep=2mm,breaklines,tabsize=4]{cpp}
+Ptr<BackgroundSubtractorBMOG> bgBMOG;
+
+// tells the compiler to use C-linkage for the next scope.
+extern "C" void getfg(int rows, int cols, unsigned char* img_data,
+    unsigned char *fgD) {
+    cv::Mat img(rows, cols, CV_8UC3, (void *) img_data);
+    cv::Mat fg(rows, cols, CV_8UC1, fgD);
+    bgBMOG->apply(img, fg);
+}
+
+// set BMOG parameters
+extern "C" void init_bgs(int nmixtures, int threshold_L, int threshold_a, int threshold_b, double background_ratio, int postprocessing_size) {
+	bgBMOG = createBackgroundSubtractorBMOG();
+    bgBMOG->setNMixtures(nmixtures);
+    bgBMOG->setVarThreshold_L(threshold_L);
+    bgBMOG->setVarThreshold_a(threshold_a);
+    bgBMOG->setVarThreshold_b(threshold_b);
+    bgBMOG->setBackgroundRatio(background_ratio);
+    bgBMOG->setPostProcessingSize(postprocessing_size);
+}
+\end{minted}
+\end{code}
+
+\begin{code}
+\caption{Compilieren der \textsc{C++} Anwendung zu einer dynamischen Libary \IT{(Bash)}}
+\begin{minted}[linenos,frame=lines,framesep=2mm,breaklines,tabsize=4]{bash}
+g++ `pkg-config opencv3 --libs --cflags` \
+    -c -fPIC BMOG.cpp -o BMOG.o
+
+g++ `pkg-config opencv3 --libs --cflags` \
+	-shared -Wl,-soname,libbmog.so -o libbmog.so BMOG.o
+\end{minted}
+\end{code}
+
+\begin{code}
+\caption{Laden und benutzen der Libary in Python mit dem Modul \TT{ctypes} \IT{(Python)}}
+\begin{minted}[linenos,frame=lines,framesep=2mm,breaklines,tabsize=4]{python}
+import numpy as np
+import ctypes as C
+
+libbmog = C.cdll.LoadLibrary('./libs/bmog/libbmog.so')
+
+class BMOG(object):
+	# same values as used for cdnet 2014
+    def __init__(self, nmixtures=5, threshold_l=35, threshold_a=12, threshold_b=12, background_ratio=1.0, postprocessing_size=9):
+        libbmog.init_bgs.argtypes = [
+            C.c_int, C.c_int, C.c_int, C.c_int, C.c_double, C.c_int]
+        libbmog.init_bgs(nmixtures, threshold_l, threshold_a,
+                        threshold_b, background_ratio, postprocessing_size)
+
+    def apply(self, img):
+        (rows, cols) = (img.shape[0], img.shape[1])
+        res = np.zeros(dtype=np.uint8, shape=(rows, cols))
+        libbmog.getfg(img.shape[0], img.shape[1],
+                    img.ctypes.data_as(C.POINTER(C.c_ubyte)),
+                    res.ctypes.data_as(C.POINTER(C.c_ubyte)))
+        return res
+\end{minted}
+\end{code}
+
+\section{ROIs mit BMOG extrahieren} \label{ap:bmog_roi}
+\autoref{ch4:rois}
+
+\begin{code}
+\caption{Mit BMOG Vordergrundmasken erstellen \IT{(Python)}}
+\label{code:fg_mask}
+\begin{minted}[linenos,frame=lines,framesep=2mm,breaklines,tabsize=4]{python}
+from bgs.bmog import BMOG
+
+# get frames (i.e. via cv2.VideoCapture or cv2.imread) ...
+
+bgs = BMOG()
+for f in frames[:5]: bgs.apply(f) # initialize distributions
+
+for f in frames[5:]:
+    fg_mask = bgs.apply(f)
+    rois = rois_from_fg_mask(fg_mask)
+\end{minted}
+\end{code}
+
+\begin{code}
+\caption{\acp{ROI} in Fordergrundmaske finden \IT{(Python)}}
+\label{code:find_rois}
+\begin{minted}[linenos,frame=lines,framesep=2mm,breaklines,tabsize=4]{python}
+import cv2
+
+def rois_from_fg_mask(fg_mask):
+	contours,_ = cv2.findContours(fg_mask, 
+		cv2.RETR_EXTERNAL,       # only extreme outer contours
+		cv2.CHAIN_APPROX_SIMPLE) # compresses segments to only return 4 endpoints for each contour
+
+	found_rois = []
+	for c in contours:
+		rectangle = cv2.boundingRect(c)
+		if is_roi_of_interest(rectangle):
+			found_rois.append(rectangle)
+
+	return found_rois
+
+MIN_SIZE, MAX_SIZE, ASPECT_RATIO = 30, 2000, 0.2
+def is_roi_of_interest(rectangle):
+    _,_,width,height = rectangle
+    
+    if min(width, height) < MIN_SIZE: return False
+    if max(width, height) > MAX_SIZE: return False
+    if width/height < ASPECT_RATIO: return False
+    if height/width < ASPECT_RATIO: return False
+
+    return True
+\end{minted}
+\end{code}
+
+\section{Aufteilung der Daten}
+\autoref{ch4:data}
+\TODO{Skript}
+
+\begin{code}
+    \renewcommand\DTstyle{\ttfamily}
+    \dirtree{%
+    .1 \includegraphics[width=0.35cm]{figures/dir/folder.png} data.
+    .2 \includegraphics[width=0.35cm]{figures/dir/folder.png} train.
+    .3 \includegraphics[width=0.35cm]{figures/dir/folder_imgs.png} agriculture machinery.
+    .4 \includegraphics[width=0.35cm]{figures/dir/picture.png} {images}.
+    .3 \includegraphics[width=0.35cm]{figures/dir/folder_imgs.png} other.
+    .4 \includegraphics[width=0.35cm]{figures/dir/picture.png} {images} .
+    .2 \includegraphics[width=0.35cm]{figures/dir/folder.png} val.
+    .3 \includegraphics[width=0.35cm]{figures/dir/folder_imgs.png} agriculture machinery.
+    .4 \includegraphics[width=0.35cm]{figures/dir/picture.png} {...}.
+    .3 \includegraphics[width=0.35cm]{figures/dir/folder_imgs.png} other.
+    .2 \includegraphics[width=0.35cm]{figures/dir/folder.png} test.
+    .3 \includegraphics[width=0.35cm]{figures/dir/folder_imgs.png} agriculture machinery.
+    .3 \includegraphics[width=0.35cm]{figures/dir/folder_imgs.png} other.
+    }
+    \caption{Datenstruktur}
+    \label{ap:fig:datastructure}
+\end{code}
+
+\section{EfficientNet und Training} \label{ap:efn_train}
+\begin{flushright}{\slshape
+	Folgender Absatz enthält Codeausschnitte von \autoref{ch4:cnn}} \\ \medskip
+\end{flushright}
+
+Die Implementation der Autoren stellt nur die fertigen Modelle zu Verfügung per TensorFlow \cite{yakubovskiy_qubvel/efficientnet_2019}.
+Daher muss zuerst der generische Konstruktor noch injectet werden:
+\begin{code} \label{code:efn_export}
+\caption{\TT{efficientnet/tfkeras.py} Export erweitern \IT{(Python)}}
+\begin{minted}[linenos,frame=lines,framesep=2mm,breaklines,tabsize=4]{python}
+EfficientNet = inject_tfkeras_modules(model.EfficientNet)
+\end{minted}
+\end{code}
+
+
+\begin{code} \label{code:efn}
+\caption{EfficientNet Modell definieren \IT{(Python)}}
+\begin{minted}[linenos,frame=lines,framesep=2mm,breaklines,tabsize=4]{python}
+import models.efficientnet.tfkeras as efn
+
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Dense, Dropout, GlobalAveragePooling2D
+
+import numpy as np
+
+def build_model(phi):
+    w = round(1.1 ** phi, 2)
+    d = round(1.2 ** phi, 2)
+	r = int(round(1.15 ** phi, 2) * 224)
+
+	# linearly increase the dropout rate for bigger models as done for the bigger family
+	# defined for negative phi down to -15
+    dropout = np.round(np.linspace(1e-05, 0.2, 15, endpoint=false), 2)[phi]
+
+    model_base = efn.efficientnet(
+        w, d, r, dropout,
+        model_name=f'efn-{phi}',
+        weights=None,
+        include_top=False)
+
+    x = model_base.output
+    x = globalaveragepooling2d()(x)
+    x = dropout(dropout, name='top_dropout')(x)
+    x = dense(1, activation='sigmoid', name='predictions')(x)
+
+    model = model(inputs=model_base.input, outputs=x)
+
+    return model
+\end{minted}
+\end{code}
+
+\begin{code} \label{code:load_data}
+\caption{Laden der Daten \IT{(Python)}}
+\begin{minted}[linenos,frame=lines,framesep=2mm,breaklines,tabsize=4]{python}
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from model.efficientnet.tfkeras import preprocess_input
+
+load_data(img_shape, train_path, val_path, batch_size):
+	datagenerator = ImageDataGenerator(
+		preprocessing_function=preprocess_input,
+		rotation_range=20,
+		horizontal_flip=True,
+		vertical_flip=True)
+
+	train = datagenerator.flow_from_directory(
+		train_path,
+		target_size=img_shape,
+		batch_size=batch_size,
+		class_mode='binary',
+		shuffle=True)
+	val = datagenerator.flow_from_directory(...) # same but path
+
+	return train, val
+\end{minted}
+\end{code}
+
+\begin{code} \label{code:train_efn}
+\caption{Trainieren des Modells \IT{(Python)}}
+\begin{minted}[linenos,frame=lines,framesep=2mm,breaklines,tabsize=4]{python}
+import constants as args
+
+from tensorflow.python.keras.losses import binary_crossentropy
+from tensorflow.keras.callbacks import EarlyStopping
+
+from keras_contrib.callbacks.cyclical_learning_rate import CyclicLR
+
+phi = -1
+
+model = build_model(phi)
+model.compile(optimizer='SGD,
+			  loss=binary_crossentropy,
+			  metrics=['accuracy'])
+
+train, val = load_data(input_shape[phi], 
+					   args.train_dir,
+					   args.val_dir,
+					   args.batch_size)
+
+clr = CyclicLR(base_lr=args.min_lr[phi],
+			   max_lr=args.max_lr[phi],
+			   step_size=args.step_size,
+			   mode='triagular')
+
+early_stop = EarlyStopping(monitor='val_loss', patience=25)
+
+# train the model
+model.fit_generator(
+	generator=train,
+	validation_data=val,
+	epochs=epochs,
+	callbacks=[clr, early_stop])
+\end{minted}
+\end{code}
+
+\section{Beispiel Annotation}
+\label{ap:annotation}
+\begin{minted}[linenos,frame=lines,framesep=2mm,breaklines,tabsize=4]{xml}
+    <annotation>
+	<folder>matchboxDay</folder>
+	<filename>WIN_20191021_14_53_35_Pro.jpg</filename>
+	<path>/images/matchboxDay/WIN_20191021_14_53_35_Pro.jpg</path>
+	<source>
+		<database>Unknown</database>
+	</source>
+	<size>
+		<width>3264</width>
+		<height>2448</height>
+		<depth>3</depth>
+	</size>
+	<segmented>0</segmented>
+	<object>
+		<name>agriculture_machinery</name>
+		<pose>Unspecified</pose>
+		<truncated>0</truncated>
+		<difficult>1</difficult>
+		<bndbox>
+			<xmin>651</xmin>
+			<ymin>216</ymin>
+			<xmax>763</xmax>
+			<ymax>325</ymax>
+		</bndbox>
+	</object>
+	<object>
+		<name>agriculture_machinery</name>
+		<pose>Unspecified</pose>
+		<truncated>0</truncated>
+		<difficult>1</difficult>
+		<bndbox>
+			<xmin>2548</xmin>
+			<ymin>152</ymin>
+			<xmax>2611</xmax>
+			<ymax>201</ymax>
+		</bndbox>
+	</object>
+	<object>
+		<name>agriculture_machinery</name>
+		<pose>Unspecified</pose>
+		<truncated>0</truncated>
+		<difficult>0</difficult>
+		<bndbox>
+			<xmin>2151</xmin>
+			<ymin>501</ymin>
+			<xmax>2336</xmax>
+			<ymax>601</ymax>
+		</bndbox>
+	</object>
+</annotation>
+\end{minted}

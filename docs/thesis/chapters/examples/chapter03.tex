@@ -1,0 +1,173 @@
+\chapter{State of the Art} \label{ch:sota}
+
+\begin{center}
+    \textit{Wie der aktuelle Stand der Wissenschaft ist}
+\end{center}
+
+In \autoref{ch:background} wurden bereits die Grundlagen zu Künstlichen Neuronalen Netzen und Background Subtraction dargelegt.
+Dieses Kapitel erläutert den aktuellen Stand der Wissenschaft und die Wahl der Modelle.
+
+% \section{Objekt Detektion}
+% Seit 2012 mit der Einführung von Deep \acp{CNN} \cite{krizhevsky_imagenet_2012} wurden in der Objekt Detektion große Durchbrüche errungen \cite{wu_recent_2019}.
+% State-of-the-Art Modelle wie YOLOv3 \cite{redmon_yolov3:_2018}, Faster R-CNN \cite{ren_faster_2015}, TridentNet \cite{li_scale-aware_2019} \& TrackNet \cite{li_tracknet:_2019} erreichen bei der Objekt Detektion hohe Genauigkeiten, sind jedoch nicht für leistungsschwache Endgeräte ausgelegt \cite{hossain_deep_2019}.
+% Grund dafür ist, dass tausende potenzielle \ac{ROI} generiert und klassifiziert werden.
+
+% Hinzu kommt, dass hierbei Objekte nur zuverlässig erkannt werden, die eine gewisse Größe  von mindestens $32px^2$ im Bild einnehmen \cite{wu_recent_2019}.
+% Die Bilder werden bei diesen Ansätzen typischerweise stark runter skaliert werden.
+% Daher wären Objekte, die vor Skalierung nur knapp die Mindestgröße aufweisen, zu klein.
+% Daher müsste das Bild in mehrere Teile geschnitten werden, was sich zusätzlich negativ auf den Durchsatz auswirken würde.
+
+% Solche Ansätze werden eingesetzt, um alle Objekte in Bildern zu finden.
+% Um jedoch nur bewegende Objekte in Bildsequenzen zu finden, wird Background Subtraction verwendet.
+
+\section{Background Subtraction}
+Ansätze zur Background Subtraction gibt es viele.
+Dank des Datensatzes des \ac{CDW} Wettbewerbs können die Ansätze direkt miteinander verglichen werden \cite{goyette_changedetection.net:_2012}.
+
+Die ersten Plätze belegen \gls{supervised} \ac{CNN} Ansätze \cite{lim_foreground_2018,lim_learning_2019,wang_interactive_2017,zheng_novel_2019-1}.
+Allerdings sind diese für unseren Einsatz nicht geeignet, da:
+\begin{enumerate}[i)]
+    \item keine Ground Truth Masken unserer Daten vorliegen, auf denen das \ac{CNN} trainiert werden könnte. Beim Erstellen des Datensatzes könnte \textit{Mask R-CNN} \cite{he_mask_2017} beim Segmentieren helfen. Im Rahmen dieser Arbeit ist dies aus Zeitgründen nicht möglich gewesen.
+    \item die vorgestellten Ansätze hohe Rechenanforderungen haben und sind somit nicht für den Anwendungsfall geeignet.
+\end{enumerate}
+
+Ebenfalls aufgrund der hohen Rechenanforderungen scheiden einige weitere \gls{unsupervised} Ansätze aus \cite{bianco_combination_2017, braham_semantic_2017, st-charles_subsense:_2015}.
+
+In den meisten \textit{Realtime} Systemen wird eine Variante des \ac{MOG}, auch \ac{GMM} genannt, verwendet.
+Diese gehören zur Gruppe der \textit{Statistical Models} und ergeben einen guten Kompromiss aus Genauigkeit und Rechenkosten \cite{goyal_review_2018}.
+
+Die ursprüngliche Implementierung \cite{zivkovic_improved_2004} erreicht zwar nur einen der letzten Plätze beim \ac{CDW} Wettbewerb, aber seither gab es einige Verbesserungen \cite{zivkovic_efficient_2006,peng_suo_improved_2008,chan_generalized_2011,nurhadiyatna_background_2013,yu_xiaoyang_novel_2013,shah_video_2014,alexandre_bmog:_2017}.
+So nähert sich die aktuelle Variante \ac{BMOG} den Ergebnissen von \textit{SubSENSE \cite{st-charles_subsense:_2015} (derzeitiger Platz 8 der unsupervised Methoden)} an und ist dabei um ein Vielfaches performanter \cite{alexandre_bmog:_2017}.
+
+\subsection{Gaussian Mixture Model}
+\citeauthor{stauffer_adaptive_1999} entwickelten das Standard \ac{GMM} \cite{stauffer_adaptive_1999}. 
+Mixture Modelle werden zum \gls{clustering} mit Wahrscheinlichkeiten verwendet.
+Für jedes Pixel wird ein Mixture Modell erstellt, welches mittels \textit{K-Means} (ein populärer Clustering Algorithmus) approximiert wird.
+Dabei ist die Wahrscheinlichkeit für die Beobachtung von Pixel $x$:
+\begin{flalign}
+    p(x) &= \sum_{j=1}^{K}{\omega_j G(x, \mu_j,\Sigma_j)}
+\end{flalign}
+
+$K$ ist die Anzahl der Gausschen Verteilungen, $\omega_j$ die Gewichte jeder Komponente, $G(x,\mu,\Sigma)$ die multivariate Gaussche Verteilung von Mittelwert $\mu$ und Kovarianz $\Sigma$.
+
+Neue Vordergrund Objekte werden typischerweise durch ein neues Cluster dargestellt, welches noch eine geringe Gewichtung hat.
+Daher werden die ersten $b$ Verteilungen, deren Gewichtung größer $T$ ist, für das Background Model verwendet.
+Die anderen bilden den Vordergrund.
+\begin{flalign}
+    B = argmin \left( \sum_{k=1}^{b} \omega_k > T \right)
+\end{flalign}
+
+Für ein neues Bild wird jedes Pixel einer der $K$ Verteilungen zugeordnet. 
+Ein Treffer gilt, sobald der Pixelwert innerhalb $2.5$ Standardabweichungen der Verteilungen liegt.
+Bei einem Treffer werden die Gewichte $\omega$ mit einer Learning Rate $\alpha$, sowie die getroffenen $\mu, \sigma$ angepasst. \\
+
+\citeauthor{zivkovic_improved_2004} präsentierte eine Methode, um die Anzahl der Komponenten adaptiv auszuwählen \cite{zivkovic_improved_2004,zivkovic_efficient_2006}.
+\citeauthor{chan_generalized_2011} benutzten dynamische Texturen zum Modellieren; \citeauthor{shah_video_2014} den YUV Farbraum anstatt des RGB Farbraums, sowie eine adaptive Learning Rate \cite{chan_generalized_2011,shah_video_2014}.
+\citeauthor{nurhadiyatna_background_2013} kombinierten \ac{GMM} mit einem \textit{Hole Filling Algorithmus}, um rauschinduzierte Klassifikationen zu reduzieren \cite{nurhadiyatna_background_2013}. \\
+Einen genaueren Vergleich verfassten unter anderem \citeauthor{goyal_review_2018} und \citeauthor{bouwmans_background_2008} \cite{goyal_review_2018, bouwmans_background_2008}. \\
+
+
+\subsection{Boosted MOG} \label{ch3:bmog}
+\citeauthor{alexandre_bmog:_2017} stellten \citeyear{alexandre_bmog:_2017} \ac{BMOG} vor \cite{alexandre_bmog:_2017}, welcher auf der \ac{MOG}2 Version von \citeauthor{zivkovic_efficient_2006} basiert. \\
+Es hat sich gezeigt, dass Farbmodelle, welche die Helligkeit separiert abbilden, vorteilhafte Ergebnisse erzielen.
+Daher wurden genau solche von den Autoren verglichen.
+Das Farbmodell \textit{CIE L*a*b*} schnitt besonders gut ab.
+Zusätzlich wurde jeder Channel vom L*a*b* Farbraum unabhängig analysiert und die Ergebnisse mittels \textsc{and} kombiniert.
+Pixel $x$ wird als Hintergrund klassifiziert, wenn alle drei Bedingungen erfüllt sind:
+\begin{flalign}
+    BG(x) &= (x_L - \mu_L)^2 < (\tau_L \pm d_{th})\sigma_L^2 \\
+        &\wedge (x_a - \mu_a)^2 < (\tau_a \pm d_{th})\sigma_a^2 \nonumber \\
+        &\wedge (x_b - \mu_b)^2 < (\tau_b \pm d_{th})\sigma_b^2 \nonumber
+\end{flalign}
+
+$\mu$ entspricht dem Mittelwert, $\sigma^2$ den Varianzen, $\tau$ den jeweiligen Schwellwerten. \\
+Zusätzlich wurde die Variable $d_{th}$ eingeführt, welche durch eine \gls{hysterese} Funktion bestimmt wird.
+Wurde Pixel $x$ zuvor als Vordergrund klassifiziert, wird $\tau$ durch $d_{th}$ reduziert, um eine Änderung zur Klasse Background zu erschweren.
+Wurde das Pixel $x$ zuvor als Background klassifiziert, gilt dasselbe vice versa.
+Grund ist, dass die Wahrscheinlichkeit für ein Ändern der Klassen zum vorherigen Bild niedriger ist, als dass sie gleich bleiben. \\
+Das Background Model wird auf ähnliche Art schneller oder weniger schnell angepasst.
+Ein Pixel, welches die Klassen ändert, wird anders behandelt als ein konstantes.
+
+\section{CNN}
+Seit AlexNet \citedate{krizhevsky_imagenet_2012} den \textsc{ImageNet} Wettbewerb gewann, wurden \acp{CNN} immer beliebter, größer und genauer \cite{krizhevsky_imagenet_2012,russakovsky_imagenet_2015}.
+Der Gewinner von 2014 GoogleNet hatte \SI{6.8}{\mega\relax} Parameter, 2015 ResNet-152 bereits \SI{60}{\mega\relax}, SENet 2017 \SI{145}{\mega\relax} und 2018 GPipe \SI{557}{\mega\relax} \cite{szegedy_going_2014, he_deep_2015, hu_squeeze-and-excitation_2018, huang_gpipe:_2019}.
+Damit erreichen die Modelle zwar sehr hohe Genauigkeiten, haben aber auch hohe Rechenanforderungen.
+
+Die meisten \acp{CNN} werden hochskaliert, indem mehr Layer hinzugefügt werden.
+Dabei kommt es häufig zu Vanishing Gradients beim Trainieren.
+Dem wird mit Residual Layern entgegengewirkt, indem der Output eines Layers nicht nur an den nächsten Layer gegeben wird, sondern auch direkt an die $2-3$ folgenden \cite{he_deep_2015}. 
+Durch diese Skip Connections kann das Netzwerk auf vorherige Aktivierungen zugreifen, die nicht von einer Convolution verändert wurden.
+Ebenfalls wird durch die Skip Connections die Fehlerober\-fläche geglättet \cite{li_visualizing_2018}.
+Dropout und Batch Normalization Layer sind eine weitere Techniken, um beim Lernen zu helfen.
+Beim Dropout werden während des Trainings zufällige Neuronen auf Null gesetzt, wodurch  Overfitting reduziert werden soll \cite{srivastava_dropout_2014}. \\
+Ein Batch Normalization Layer subtrahiert den Mittelwert und teilt durch die Standardabweichung des vorherigen Layers \cite{ioffe_batch_2015}. Dadurch wird die Fehler\-oberfläche geglättet, was höhere Learning Rates erlaubt \cite{santurkar_how_2019}.
+
+\bigskip
+Mit der steigenden Popularität von \acp{CNN} für mobile Telefone, wurden zum Beispiel SqueezeNet, ShuffleNets und MobileNets entworfen \cite{iandola_squeezenet:_2016,zhang_shufflenet:_2017,sandler_mobilenetv2:_2019}.
+Diese opfern Geschwindigkeit für Genauigkeit.
+Dazu wird traditionell einer der Faktoren 
+\begin{enumerate*}[(a)]
+    \item Eingangsbildgröße,
+    \item Netzwerkbreite oder 
+    \item Netzwerktiefe
+\end{enumerate*}
+reduziert. \\
+Genau da setzt EfficientNet, der derzeitige Führer des \SC{ImageNet} Wettbewerbs, an und skaliert alle drei Werte gleichzeitig \cite{tan_efficientnet:_2019}.
+So wird das \ac{CNN} den jeweiligen Anforderungen effizient angepasst.
+
+
+\subsection{EfficientNet} \label{ch3:efn}
+\citeauthor{tan_efficientnet:_2019} stellten am 28. Mai 2019 EfficientNet vor, bei welchem die drei Faktoren zusammenhängend skaliert werden \cite{tan_efficientnet:_2019}.
+
+Intuitiv macht es Sinn, die drei Faktoren zusammen zu skalieren.
+Auch in Tests hat sich gezeigt, dass bei Skalierung von nur einem Parameter die Ergebniswerte sich zwar verbessern, aber auch schnell konvergieren.
+
+Denn je größer das Bild, desto mehr Layer (Tiefe) werden benötigt, um ein gleich großes Sichtfeld zu erreichen.
+Auch werden pro Layer mehr Feature Maps (Breite) gebraucht, um feinere Muster zu erkennen.
+
+\bigskip
+Als Inspiration für das Basismodell EfficientNet-B0 stand das MnasNet \cite{tan_mnasnet:_2019}.
+Dessen Hauptbaustein ist der \textit{Mobile Inverted Bottleneck Block (MBConv)}, welcher in \citetitle{sandler_mobilenetv2:_2019} erklärt wird \cite{sandler_mobilenetv2:_2019}.
+
+Die Autoren haben Koeffizienten mittels \IT{Grid Search} für die drei Faktoren bestimmt, mit denen das EfficientNet-B0 skalieren soll:
+\begin{flalign*}
+    {\text{Tiefe: }}         d &= 1.2^\phi \\
+    {\text{Breite: }}        w &= 1.1^\phi \\
+    {\text{Auflösung: }}     r &= 1.15^\phi * 224
+\end{flalign*}
+Das bedeutet, wenn sich die Bildgröße von $224$ um $15\%$ erhöht, wird auch die Breite um $10\%$ und die Tiefe um $20\%$ erhöht.
+So werden mit verschiedenen \IT{Compound Koeffizienten} $\phi$ aus dem Basismodell EfficientNet-B0 bis B7.
+
+Im Vergleich zeigt sich, dass B0-7 durchgehend kompetitive Ergebnisse mit weniger Parametern erzielen (siehe \autoref{ch3:tab:efn}).
+
+\begin{table}[ht]
+    \centering
+    \begin{tabular}[b]{l|cr}
+    & Top1 Acc. & \#Params  \\
+    \shline
+    ResNet-50 \cite{he_deep_2015} & 76.0\% & 26M \\
+    \bf EfficientNet-B0 & \bf 77.3\% & \bf 5.3M \\
+    \hline
+    ResNet-152 \cite{he_deep_2015} & 77.8\%  & 60M \\
+    \bf EfficientNet-B1 & \bf 79.2\%  & \bf 7.8M \\
+    \hline
+    ResNeXt-101 \cite{xie_aggregated_2016}         &  80.9\% & 84M \\
+    \bf EfficientNet-B3                                    & \bf 81.7\%  & \bf 12M \\
+    \hline
+    SENet  \cite{hu_squeeze-and-excitation_2018}                       &  82.7\% & 146M \\
+    NASNet-A \cite{zoph_learning_2018}     & 82.7\% & 89M \\
+    \bf EfficientNet-B4                                    & \bf 83.0\% & \bf 19M \\
+    \hline
+    GPipe \cite{huang_gpipe:_2019}  &  84.3\% & 556M \\
+    \bf EfficientNet-B7                                    & \bf 84.4\% & \bf 66M \\
+    \end{tabular}
+    \caption{EfficientNet: Modellgenauigkeit gegen Größe \cite{tan_efficientnet:_2019}}
+    \label{ch3:tab:efn}
+\end{table}
+
+
+\section*{Zusammenfassend}
+Für den weiteren Verlauf wird in dieser Arbeit für die \ac{BGS} der \ac{BMOG} Algorithmus verwendet.
+\ac{BMOG} basiert auf \ac{MOG} und stellt einen guten Kompromiss aus Genauigkeit und Rechenkosten dar.
+
+Zum Klassifizieren werden unterschiedliche Koeffizienten $\phi$ für das EfficientNet getestet und evaluiert.
